@@ -9,6 +9,11 @@ export const matchesPattern = (url: string, pattern: string): boolean => {
 		return false;
 	}
 	if (pattern.includes("*")) {
+		const patternProtocol = getProtocol(pattern);
+		const candidateProtocol = getProtocol(url);
+		if (patternProtocol && patternProtocol !== candidateProtocol) {
+			return false;
+		}
 		const patternHost = pattern.includes("://") ? getHost(pattern) : pattern;
 		return wildcardMatch(patternHost)(getHost(url));
 	}

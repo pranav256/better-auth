@@ -9,6 +9,7 @@ const trustedOrigins = [
 	"myapp://trusted",
 	"better-auth://",
 	"*.wildcard-site.com",
+	"https://*.scheme-wildcard.com",
 ];
 
 const logger = {
@@ -111,6 +112,26 @@ describe("origin check security", () => {
 			statusCode: 403,
 		});
 	});
+
+	it("enforces protocol on scheme-qualified wildcard origins", async () => {
+		await expect(
+			middleware(middlewareContext("https://sub.scheme-wildcard.com/cb")),
+		).resolves.toBeUndefined();
+
+		await expect(
+			middleware(middlewareContext("http://sub.scheme-wildcard.com/cb")),
+		).rejects.toMatchObject({
+			status: "FORBIDDEN",
+			statusCode: 403,
+		});
+
+		await expect(
+			middleware(middlewareContext("myapp://sub.scheme-wildcard.com/cb")),
+		).rejects.toMatchObject({
+			status: "FORBIDDEN",
+			statusCode: 403,
+		});
+	});
 });
 
 describe("matchesPattern unit tests", () => {
@@ -128,7 +149,10 @@ describe("matchesPattern unit tests", () => {
 			matchesPattern("http://example.com/path", "http://example.com:80"),
 		).toBe(true);
 		expect(
-			matchesPattern("https://example.com.evil.com/path", "https://example.com"),
+			matchesPattern(
+				"https://example.com.evil.com/path",
+				"https://example.com",
+			),
 		).toBe(false);
 	});
 
@@ -138,14 +162,35 @@ describe("matchesPattern unit tests", () => {
 		expect(
 			matchesPattern("myapp://trusted.evil.com/cb", "myapp://trusted"),
 		).toBe(false);
+		expect(matchesPattern("myapp://trustedevil/cb", "myapp://trusted")).toBe(
+			false,
+		);
+		expect(matchesPattern("better-auth://callback", "better-auth://")).toBe(
+			true,
+		);
+		expect(matchesPattern("other-scheme://callback", "better-auth://")).toBe(
+			false,
+		);
+	});
+
+	it("handles scheme-qualified wildcard patterns correctly", () => {
 		expect(
-			matchesPattern("myapp://trustedevil/cb", "myapp://trusted"),
-		).toBe(false);
-		expect(
-			matchesPattern("better-auth://callback", "better-auth://"),
+			matchesPattern("https://foo.example.com/cb", "https://*.example.com"),
 		).toBe(true);
 		expect(
-			matchesPattern("other-scheme://callback", "better-auth://"),
+			matchesPattern("http://foo.example.com/cb", "https://*.example.com"),
 		).toBe(false);
+		expect(
+			matchesPattern("myapp://foo.example.com/cb", "https://*.example.com"),
+		).toBe(false);
+		expect(
+			matchesPattern("https://foo.example.com/cb", "myapp://*.example.com"),
+		).toBe(false);
+		expect(matchesPattern("https://foo.example.com/cb", "*.example.com")).toBe(
+			true,
+		);
+		expect(matchesPattern("http://foo.example.com/cb", "*.example.com")).toBe(
+			true,
+		);
 	});
 });
